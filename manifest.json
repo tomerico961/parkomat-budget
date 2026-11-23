@@ -1,0 +1,57 @@
+{
+  "name": "פרקומט - מערכת תקציבים ותמחורים",
+  "short_name": "פרקומט",
+  "description": "מערכת ניהול תקציבים ותמחורים לקבלני התקנות פרקומט - פרויקטים, חריגות, הצעות מחיר ודוחות",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "finance"],
+  "shortcuts": [
+    {
+      "name": "דשבורד",
+      "short_name": "דשבורד",
+      "description": "עמוד הדשבורד הראשי",
+      "url": "./#dashboard",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "תמחור חדש",
+      "short_name": "תמחור",
+      "description": "יצירת תמחור חדש",
+      "url": "./#pricing-new",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "הצעת מחיר חדשה",
+      "short_name": "הצעה",
+      "description": "יצירת הצעת מחיר חדשה",
+      "url": "./#quotes",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
