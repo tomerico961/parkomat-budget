@@ -1,0 +1,11 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# User-exported data (should never be committed)
+parkomat_data_backup.json
+*.backup.json
+merge_*.json
