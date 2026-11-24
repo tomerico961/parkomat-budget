@@ -729,6 +729,243 @@ table.data-table {
   body { background: white; }
   .card { box-shadow: none; border-radius: 0; padding: 0; }
 }
+
+/* =====================================================================
+   MOBILE OPTIMIZATION (v2.3.3) — responsive design for phones
+   All non-mobile CSS stays unchanged; this only ADDS behavior on <768px.
+   ===================================================================== */
+@media (max-width: 768px) {
+  /* ===== Global ===== */
+  html, body { font-size: 14px; -webkit-text-size-adjust: 100%; }
+  .app-main { padding: 8px !important; }
+
+  /* ===== Header - compact ===== */
+  .app-header { padding: 8px 10px !important; flex-wrap: wrap !important; gap: 6px !important; }
+  .app-header .title-block h1 { font-size: 16px !important; }
+  .app-header .title-block .subtitle { font-size: 10px !important; display: none; }
+  .app-header .logo { height: 28px !important; }
+  .header-actions { gap: 4px !important; flex-wrap: wrap !important; }
+  .header-actions .btn { padding: 5px 8px !important; font-size: 11px !important; }
+
+  /* ===== Main navigation - horizontal scroll ===== */
+  .pk-mainnav {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+    padding: 4px !important;
+    gap: 2px !important;
+  }
+  .pk-mainnav::-webkit-scrollbar { display: none; }
+  .pk-navbtn {
+    flex-shrink: 0 !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    min-height: 40px;
+  }
+  .pk-navbtn .icon { font-size: 14px !important; }
+
+  /* ===== Page header ===== */
+  .page-header { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; padding: 10px !important; }
+  .page-header h2 { font-size: 18px !important; }
+  .page-header .actions { flex-wrap: wrap !important; gap: 6px !important; }
+  .page-header .actions .btn { flex: 1 1 auto; min-width: 100px; min-height: 40px; }
+
+  /* ===== KPI grid - 2 columns on phone ===== */
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
+  .kpi { padding: 10px !important; }
+  .kpi-label { font-size: 11px !important; }
+  .kpi-value { font-size: 18px !important; }
+  .kpi-sub { font-size: 10px !important; }
+  .kpi-cta { font-size: 10px !important; display: none; }
+
+  /* ===== Quick actions card - vertical stack ===== */
+  .page .card > div[style*="flex-wrap"] .btn { flex: 1 1 100%; min-height: 44px; margin: 2px 0; }
+
+  /* ===== Scrolling wrappers around tables → unlock on mobile so cards expand ===== */
+  .table-wrap > div[style*="overflow-x"],
+  .table-wrap > div[style*="overflow"] {
+    overflow: visible !important;
+  }
+  .table-wrap { overflow: visible !important; }
+
+  /* ===== TABLES → CARDS transformation (the key fix) ===== */
+  .data-table { border: 0 !important; width: 100% !important; display: block !important; }
+  .data-table thead { display: none !important; }
+  .data-table tbody { display: block !important; }
+  .data-table tr {
+    display: block !important;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
+  .data-table td {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0 !important;
+    border: 0 !important;
+    font-size: 12px !important;
+    gap: 8px;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--gray-500);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  /* First cell (often the ID or primary identifier) - as title */
+  .data-table td:first-child {
+    font-weight: 700;
+    font-size: 15px !important;
+    color: var(--gray-800);
+    border-bottom: 1px solid var(--gray-100) !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 4px;
+    justify-content: flex-start;
+  }
+  .data-table td:first-child::before { display: none; }
+  /* Last cell (usually actions) - full width buttons */
+  .data-table td.col-actions, .data-table td:last-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--gray-100) !important;
+    margin-top: 4px;
+    justify-content: flex-end !important;
+  }
+  .data-table td.col-actions::before, .data-table td:last-child::before { display: none; }
+  .data-table td.col-actions .btn, .data-table td:last-child .btn {
+    flex: 1 1 auto;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+  /* Progress bars inside cards */
+  .data-table .progress { width: 100% !important; margin: 2px 0; }
+
+  /* ===== Table toolbars / filters ===== */
+  .table-toolbar { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; padding: 8px !important; }
+  .table-search { width: 100% !important; max-width: none !important; min-height: 40px; }
+  .table-filters { flex-wrap: wrap !important; gap: 4px !important; }
+  .filter-chip { font-size: 11px !important; padding: 5px 10px !important; min-height: 34px; }
+
+  /* ===== Cards, modals ===== */
+  .card { padding: 10px !important; margin-bottom: 8px !important; }
+  .card-header h3 { font-size: 15px !important; }
+
+  /* ===== Modal - full screen on phone ===== */
+  .pk-popup-overlay.active { padding: 0 !important; }
+  .pk-popup-overlay > .pk-popup {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  #pk-popup-body { padding: 12px !important; }
+  #pk-popup-footer { padding: 10px !important; flex-wrap: wrap !important; gap: 6px !important; }
+  #pk-popup-footer .btn { flex: 1 1 auto; min-height: 44px; }
+
+  /* ===== Forms ===== */
+  .form-row { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .form-field input, .form-field select, .form-field textarea {
+    min-height: 44px !important;
+    font-size: 14px !important;
+    padding: 10px !important;
+  }
+
+  /* ===== Chart container ===== */
+  .chart-row { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .chart-container { padding: 8px !important; }
+  .chart-container h3 { font-size: 13px !important; }
+  .canvas-wrap { height: 280px !important; }
+
+  /* ===== Pricing builder - stack panes ===== */
+  .pricing-layout { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .pricing-pane { max-height: 50vh; }
+
+  /* ===== Buttons general ===== */
+  .btn { min-height: 38px; }
+  .btn-sm { min-height: 32px; min-width: 32px; padding: 4px 8px !important; font-size: 12px !important; }
+
+  /* ===== Budget categories table (inside project modal) ===== */
+  .budget-table { font-size: 12px !important; }
+  .budget-table th, .budget-table td { padding: 6px 4px !important; }
+
+  /* ===== Footer-legal in PDFs/toasts ===== */
+  .toast-container { right: 8px !important; left: 8px !important; bottom: 8px !important; }
+  .toast { font-size: 13px !important; }
+
+  /* ===== Specific page fixes ===== */
+  /* Dashboard quick actions - stack on mobile */
+  #page-dashboard .card > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+  }
+
+  /* Deviations report page */
+  #dev-view-report > .card > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Projects list filter chips */
+  #projects-filters { flex-wrap: wrap !important; gap: 4px !important; }
+
+  /* ===== Projects table specific - hide ID column, promote name to title ===== */
+  #projects-table td:first-child {
+    display: none !important;
+  }
+  #projects-table td:nth-child(2) {
+    display: block !important;
+    font-weight: 700 !important;
+    font-size: 16px !important;
+    color: var(--gray-800) !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 4px !important;
+    border-bottom: 1px solid var(--gray-100) !important;
+    border-top: 0 !important;
+    padding-top: 0 !important;
+    justify-content: flex-start !important;
+  }
+  #projects-table td:nth-child(2)::before { display: none !important; }
+  #projects-table td:nth-child(2) strong { font-size: 16px !important; }
+
+  /* Pricings table specific - hide ID, promote date/name */
+  #pricings-table td:first-child {
+    display: none !important;
+  }
+  #pricings-table td:nth-child(2),
+  #pricings-table td:nth-child(3) {
+    font-weight: 600 !important;
+  }
+
+  /* Deviations table specific - hide ID */
+  #deviations-table td:first-child {
+    display: none !important;
+  }
+
+  /* Quotes table specific - hide ID */
+  #quotes-tbody td:first-child {
+    display: none !important;
+  }
+}
+
+/* ===== Extra-small phones ===== */
+@media (max-width: 480px) {
+  .kpi-grid { grid-template-columns: 1fr !important; }
+  .page-header .actions .btn { font-size: 12px !important; padding: 8px 10px !important; }
+  .app-header .title-block h1 { font-size: 14px !important; }
+}
 </style>
 </head>
 <body>
@@ -9566,6 +9803,60 @@ document.getElementById('company-logo').src = COMPANY_LOGO;
     }
   }
 })();
+
+/* ============ MOBILE: Auto-label table cells for card view (v2.3.3) ============
+   On mobile, our CSS turns data tables into cards. Each cell shows a label
+   next to its value. This runs on every table render + via MutationObserver,
+   populating `data-label` from the matching `<th>` text.  */
+function _autoLabelTable(table) {
+  if (!table || !table.tHead) return;
+  const headers = Array.from(table.tHead.querySelectorAll('th')).map(h => (h.textContent || '').trim());
+  if (headers.length === 0) return;
+  const bodyRows = table.querySelectorAll('tbody tr');
+  bodyRows.forEach(tr => {
+    const cells = tr.children;
+    for (let i = 0; i < cells.length && i < headers.length; i++) {
+      if (!cells[i].hasAttribute('data-label')) {
+        cells[i].setAttribute('data-label', headers[i]);
+      }
+    }
+  });
+}
+
+function _autoLabelAllTables() {
+  document.querySelectorAll('table.data-table').forEach(_autoLabelTable);
+}
+
+// Set up MutationObserver that re-labels any table changed in the main area
+if (typeof MutationObserver !== 'undefined') {
+  const _labelObserver = new MutationObserver((muts) => {
+    let shouldLabel = false;
+    for (const m of muts) {
+      if (m.type === 'childList' && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
+        shouldLabel = true;
+        break;
+      }
+    }
+    if (shouldLabel) {
+      // debounce
+      if (window._labelDebounce) clearTimeout(window._labelDebounce);
+      window._labelDebounce = setTimeout(_autoLabelAllTables, 50);
+    }
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    const main = document.querySelector('.app-main') || document.body;
+    _labelObserver.observe(main, { childList: true, subtree: true });
+    _autoLabelAllTables();
+  });
+  // Also run immediately if DOM is already loaded
+  if (document.readyState !== 'loading') {
+    setTimeout(() => {
+      const main = document.querySelector('.app-main') || document.body;
+      _labelObserver.observe(main, { childList: true, subtree: true });
+      _autoLabelAllTables();
+    }, 100);
+  }
+}
 
 /* ============ PWA: Service Worker Registration ============ */
 if ('serviceWorker' in navigator) {
