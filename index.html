@@ -751,14 +751,13 @@ table.data-table {
   .pk-mainnav {
     overflow-x: auto !important;
     overflow-y: visible !important;
-    -webkit-overflow-scrolling: touch;
     flex-wrap: nowrap !important;
     scrollbar-width: none;
     padding: 6px 8px !important;
     gap: 4px !important;
     min-height: 54px !important;
     align-items: stretch !important;
-    touch-action: pan-x !important;  /* Allow horizontal scroll BUT keep taps working */
+    /* IMPORTANT: NO touch-action here - let Android/iOS handle naturally */
   }
   .pk-mainnav::-webkit-scrollbar { display: none; }
   .pk-navbtn {
@@ -768,11 +767,7 @@ table.data-table {
     white-space: nowrap !important;
     min-height: 44px !important;
     min-width: 60px;
-    touch-action: manipulation !important;
-    pointer-events: auto !important;
     cursor: pointer;
-    position: relative;
-    z-index: 1;
   }
   .pk-navbtn .icon { font-size: 15px !important; margin-left: 4px; }
 
