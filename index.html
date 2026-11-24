@@ -3082,15 +3082,112 @@ async function pkCloudPushImmediate() {
   await pkCloudPushNow();
 }
 
+/* =============================================================
+   v2.3.2 — Strip heavy binary fields before cloud push.
+   PDF/DOC attachments embedded as base64 can make the JSONB blob
+   many MB, which blows past Supabase's statement timeout (8s).
+   Files stay in local IndexedDB only. On pull, local files are
+   re-merged by stable key (project_id / pricing_id / file index).
+   =============================================================
+*/
+
+// Build a shallow JSON-safe clone of DATA without heavy binary fields.
+// Projects: keep `files[]` metadata but drop the `data` (base64).
+// Pricings: drop entire `source_file.data`.
+function _pkStripHeavyFields(data) {
+  if (!data) return data;
+  // Shallow clone first, then deep-clone only the sections we modify
+  const slim = { ...data };
+
+  // Projects — keep files metadata but drop base64 data
+  if (Array.isArray(data.projects)) {
+    slim.projects = data.projects.map(p => {
+      if (!p || !Array.isArray(p.files) || p.files.length === 0) return p;
+      return {
+        ...p,
+        files: p.files.map(f => {
+          if (!f) return f;
+          const { data: _skipped, ...rest } = f;
+          return { ...rest, _stripped: !!_skipped };
+        }),
+      };
+    });
+  }
+
+  // Pricings — drop source_file.data (keep name/size as metadata)
+  if (Array.isArray(data.pricings)) {
+    slim.pricings = data.pricings.map(pr => {
+      if (!pr || !pr.source_file) return pr;
+      const { data: _skipped, ...restFile } = pr.source_file;
+      return { ...pr, source_file: { ...restFile, _stripped: !!_skipped } };
+    });
+  }
+
+  return slim;
+}
+
+// After pulling slim data from cloud, splice back the heavy binary fields
+// from our local copy, keyed by stable IDs.
+function _pkMergeLocalBinaries(remoteData, localData) {
+  if (!remoteData || !localData) return remoteData;
+  const merged = { ...remoteData };
+
+  // Merge project files
+  if (Array.isArray(remoteData.projects) && Array.isArray(localData.projects)) {
+    const localProjectsById = {};
+    localData.projects.forEach(lp => { if (lp && lp.id != null) localProjectsById[lp.id] = lp; });
+    merged.projects = remoteData.projects.map(rp => {
+      if (!rp || !Array.isArray(rp.files)) return rp;
+      const lp = localProjectsById[rp.id];
+      if (!lp || !Array.isArray(lp.files)) return rp;
+      // Merge by file name (stable key within a project)
+      const localFilesByName = {};
+      lp.files.forEach(lf => { if (lf && lf.name) localFilesByName[lf.name] = lf; });
+      return {
+        ...rp,
+        files: rp.files.map(rf => {
+          if (!rf) return rf;
+          const lf = localFilesByName[rf.name];
+          if (lf && lf.data) {
+            // Restore the base64 from local
+            const { _stripped, ...clean } = rf;
+            return { ...clean, data: lf.data };
+          }
+          return rf;
+        }),
+      };
+    });
+  }
+
+  // Merge pricing source files
+  if (Array.isArray(remoteData.pricings) && Array.isArray(localData.pricings)) {
+    const localPricingsById = {};
+    localData.pricings.forEach(lp => { if (lp && lp.id != null) localPricingsById[lp.id] = lp; });
+    merged.pricings = remoteData.pricings.map(rp => {
+      if (!rp || !rp.source_file) return rp;
+      const lp = localPricingsById[rp.id];
+      if (lp && lp.source_file && lp.source_file.data) {
+        const { _stripped, ...clean } = rp.source_file;
+        return { ...rp, source_file: { ...clean, data: lp.source_file.data } };
+      }
+      return rp;
+    });
+  }
+
+  return merged;
+}
+
 async function pkCloudPushNow() {
   const sb = _pkSupabase();
   if (!sb || !_pkUser || !DATA) return false;
   _pkUpdateSyncBadge('syncing');
   const newVersion = (_pkLocalVersion || 0) + 1;
+  // v2.3.2 — strip heavy binary fields (base64 PDFs etc) before pushing
+  const slimData = _pkStripHeavyFields(DATA);
   try {
     const { error } = await sb.from('user_data').upsert({
       user_id: _pkUser.id,
-      data: DATA,
+      data: slimData,
       version: newVersion,
     }, { onConflict: 'user_id' });
     if (error) throw error;
@@ -3098,13 +3195,16 @@ async function pkCloudPushNow() {
     // Persist version so next page load knows local is at this version
     try { localStorage.setItem(PK_LOCAL_VERSION_KEY, String(newVersion)); } catch(e) {}
     try { localStorage.removeItem(PK_PENDING_PUSH_KEY); } catch(e) {}
-    // Also write to history (best-effort, never blocks)
-    sb.from('user_data_history').insert({
-      user_id: _pkUser.id,
-      data: DATA,
-      version: newVersion,
-      device_label: navigator.userAgent.slice(0, 120),
-    }).then(() => {}, () => {});
+    // Skip history table on large payloads (adds extra write that can also time out)
+    const slimSize = JSON.stringify(slimData).length;
+    if (slimSize < 500000) {  // <500KB only — keep history lightweight
+      sb.from('user_data_history').insert({
+        user_id: _pkUser.id,
+        data: slimData,
+        version: newVersion,
+        device_label: navigator.userAgent.slice(0, 120),
+      }).then(() => {}, () => {});
+    }
     _pkUpdateSyncBadge('online');
     return true;
   } catch (err) {
@@ -3140,7 +3240,9 @@ async function pkApplyRemoteUpdate(row) {
   if (!row || !row.data) return;
   _pkIsPulling = true;
   try {
-    DATA = row.data;
+    // v2.3.2 — merge local binary fields (PDFs, etc) back into the slim remote data
+    const mergedData = _pkMergeLocalBinaries(row.data, DATA);
+    DATA = mergedData;
     _pkLocalVersion = row.version;
     try { localStorage.setItem(PK_LOCAL_VERSION_KEY, String(row.version)); } catch(e) {}
     try { localStorage.removeItem(PK_PENDING_PUSH_KEY); } catch(e) {}
@@ -3317,9 +3419,11 @@ window.addEventListener('beforeunload', () => {
   // Synchronous flush via fetch(keepalive:true) — browser sends even after unload
   try {
     const url = `${window.PK_SUPABASE_URL}/rest/v1/user_data?on_conflict=user_id`;
+    // v2.3.2 — strip heavy binary fields for the beforeunload flush too
+    const slimForBeacon = _pkStripHeavyFields(DATA);
     const body = JSON.stringify({
       user_id: _pkUser.id,
-      data: DATA,
+      data: slimForBeacon,
       version: (_pkLocalVersion || 0) + 1,
     });
     fetch(url, {
@@ -3573,9 +3677,11 @@ document.getElementById('import-file').addEventListener('change', (e) => {
         // so the cloud is updated before the user can close the browser.
         try {
           if (typeof pkCloudPushImmediate === 'function' && _pkUser) {
-            toast('☁️ מעלה את הנתונים לענן...', 'info');
-            pkCloudPushImmediate().then(() => {
-              toast('✓ הנתונים הועלו לענן בהצלחה', 'success');
+            toast('☁️ מעלה נתונים לענן (קבצים מצורפים נשארים מקומית)...', 'info');
+            pkCloudPushImmediate().then((ok) => {
+              if (ok !== false) {
+                toast('✓ נתונים סונכרנו לענן. קבצי PDF מצורפים נשמרו במכשיר זה בלבד', 'success');
+              }
             });
           } else {
             toast('הנתונים יובאו בהצלחה', 'success');
