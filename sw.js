@@ -5,7 +5,7 @@
    This gives offline support while still updating the app when online.
    ============================================================ */
 
-const CACHE_VERSION = 'parkomat-v2.3.4';
+const CACHE_VERSION = 'parkomat-v2.3.5';
 const APP_SHELL = [
   './',
   './index.html',
