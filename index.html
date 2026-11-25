@@ -4230,24 +4230,43 @@ function closeCategoryLineItemsModal(projectId) {
 }
 
 function addCategoryLineItemRow(projectId, categoryKey) {
-  const project = DATA.projects.find(p => p.id === projectId);
-  if (!project) return;
-  normalizeProjectCategories(project);
-  const cat = project.budget_categories.find(c => c.key === categoryKey);
-  if (!cat) return;
-  if (!Array.isArray(cat.line_items)) cat.line_items = [];
-  const newItem = {
-    id: _nextLineItemId(cat.line_items),
-    date: todayISO(),
-    description: '',
-    amount: 0,
-    created_at: new Date().toISOString(),
-  };
-  cat.line_items.push(newItem);
-  syncCategoryFromLineItems(projectId, categoryKey);
-  saveData();
-  // Re-open the modal to show new row
-  openCategoryLineItemsModal(projectId, categoryKey);
+  try {
+    console.log('[line-items] Adding row to', projectId, categoryKey);
+    const project = DATA.projects.find(p => p.id === projectId);
+    if (!project) { toast('פרויקט לא נמצא: ' + projectId, 'danger'); return; }
+
+    // Find category WITHOUT calling normalize (which could rebuild the array)
+    let cat = (project.budget_categories || []).find(c => c.key === categoryKey);
+    if (!cat) {
+      // Only normalize if the category truly doesn't exist
+      normalizeProjectCategories(project);
+      cat = project.budget_categories.find(c => c.key === categoryKey);
+    }
+    if (!cat) { toast('קטגוריה לא נמצאה: ' + categoryKey, 'danger'); return; }
+
+    // Ensure line_items array exists on this specific object
+    if (!Array.isArray(cat.line_items)) cat.line_items = [];
+
+    const newItem = {
+      id: _nextLineItemId(cat.line_items),
+      date: todayISO(),
+      description: '',
+      amount: 0,
+      created_at: new Date().toISOString(),
+    };
+    cat.line_items.push(newItem);
+    console.log('[line-items] After push, count:', cat.line_items.length);
+
+    syncCategoryFromLineItems(projectId, categoryKey);
+    saveData();
+    toast('✓ שורה נוספה', 'success');
+
+    // Re-open the modal to show new row
+    openCategoryLineItemsModal(projectId, categoryKey);
+  } catch (err) {
+    console.error('[line-items] addCategoryLineItemRow failed:', err);
+    toast('שגיאה בהוספת שורה: ' + (err.message || err), 'danger');
+  }
 }
 
 function updateCategoryLineItem(projectId, categoryKey, itemId, field, value) {
