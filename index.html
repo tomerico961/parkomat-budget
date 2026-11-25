@@ -4096,6 +4096,227 @@ function syncAllContingencies() {
   (DATA.projects || []).forEach(p => syncContingencyFromDeviations(p.id));
 }
 
+/* v2.4.0 — Categories that support detailed line items (per user request):
+   הובלות, מתכלים, אינטגרציה, תשומות ניהוליות.
+   NOT: install (uses contractors/pricings) + contingency (uses deviations). */
+const LINE_ITEM_CATEGORIES = ['transport', 'consumables', 'integration', 'management'];
+
+/* Sync a category's pricing_actual from its line_items array (if non-empty).
+   When line_items exists and has entries, the sum becomes the actual cost.
+   When empty, the previously-set manual pricing_actual is kept. */
+function syncCategoryFromLineItems(projectId, categoryKey) {
+  const project = DATA.projects.find(p => p.id === projectId);
+  if (!project) return;
+  normalizeProjectCategories(project);
+  const cat = project.budget_categories.find(c => c.key === categoryKey);
+  if (!cat || !LINE_ITEM_CATEGORIES.includes(categoryKey)) return;
+  if (Array.isArray(cat.line_items) && cat.line_items.length > 0) {
+    const sum = cat.line_items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    cat.pricing_actual = sum;
+  }
+}
+
+function syncAllLineItemCategories(projectId) {
+  LINE_ITEM_CATEGORIES.forEach(key => syncCategoryFromLineItems(projectId, key));
+}
+
+/* ============ CATEGORY LINE ITEMS (popup editor) v2.4.0 ============ */
+function _nextLineItemId(items) {
+  if (!Array.isArray(items) || items.length === 0) return 1;
+  return Math.max(...items.map(i => Number(i.id) || 0)) + 1;
+}
+
+function openCategoryLineItemsModal(projectId, categoryKey) {
+  const project = DATA.projects.find(p => p.id === projectId);
+  if (!project) { toast('פרויקט לא נמצא', 'danger'); return; }
+  normalizeProjectCategories(project);
+  const cat = project.budget_categories.find(c => c.key === categoryKey);
+  if (!cat) { toast('קטגוריה לא נמצאה', 'danger'); return; }
+  if (!Array.isArray(cat.line_items)) cat.line_items = [];
+
+  const sum = cat.line_items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+  const diff = cat.budget_planned - sum;
+  const diffColor = diff >= 0 ? '#16a34a' : '#dc2626';
+
+  const rows = cat.line_items.map((it, idx) => `
+    <tr>
+      <td style="width:46px; text-align:center; color:var(--gray-500);">${idx + 1}</td>
+      <td style="width:130px;">
+        <input type="date" value="${it.date || ''}"
+          onchange="updateCategoryLineItem(${projectId}, '${categoryKey}', ${it.id}, 'date', this.value)"
+          style="width:100%; padding:6px; border:1px solid var(--gray-300); border-radius:4px; font-size:13px;">
+      </td>
+      <td>
+        <input type="text" value="${escapeHtml(it.description || '')}" placeholder="תיאור העבודה / הפריט"
+          oninput="updateCategoryLineItem(${projectId}, '${categoryKey}', ${it.id}, 'description', this.value)"
+          style="width:100%; padding:6px; border:1px solid var(--gray-300); border-radius:4px; font-size:13px;">
+      </td>
+      <td style="width:140px;">
+        <input type="number" value="${it.amount || 0}" min="0" step="any" placeholder="0"
+          oninput="updateCategoryLineItem(${projectId}, '${categoryKey}', ${it.id}, 'amount', this.value)"
+          style="width:100%; padding:6px; border:1px solid var(--gray-300); border-radius:4px; font-size:13px; text-align:left; direction:ltr;">
+      </td>
+      <td style="width:50px; text-align:center;">
+        <button class="btn btn-sm btn-danger" onclick="deleteCategoryLineItem(${projectId}, '${categoryKey}', ${it.id})" title="מחק">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+
+  const body = `
+    <div style="margin-bottom: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+      <div style="background:#eff6ff; padding:10px 12px; border-radius:6px;">
+        <div style="font-size:11px; color:#1e40af; margin-bottom:2px;">תקציב מתוכנן</div>
+        <div style="font-size:18px; font-weight:700; color:#1e40af;" class="text-num">${fmtCurrency(cat.budget_planned)}</div>
+      </div>
+      <div style="background:#f0fdf4; padding:10px 12px; border-radius:6px;">
+        <div style="font-size:11px; color:#065f46; margin-bottom:2px;">סה"כ בפועל (${cat.line_items.length} שורות)</div>
+        <div style="font-size:18px; font-weight:700; color:#065f46;" class="text-num">${fmtCurrency(sum)}</div>
+      </div>
+      <div style="background:${diff >= 0 ? '#f0fdf4' : '#fef2f2'}; padding:10px 12px; border-radius:6px;">
+        <div style="font-size:11px; color:${diffColor}; margin-bottom:2px;">${diff >= 0 ? 'יתרה בתקציב' : 'חריגה מהתקציב'}</div>
+        <div style="font-size:18px; font-weight:700; color:${diffColor};" class="text-num">${diff >= 0 ? '+' : '-'}${fmtCurrency(Math.abs(diff))}</div>
+      </div>
+    </div>
+
+    <div style="background:#fffbeb; border:1px solid #fbbf24; border-right:4px solid #f59e0b; padding:10px 14px; border-radius:6px; margin-bottom:14px; font-size:13px; color:#78350f;">
+      💡 הוסף שורות פירוט לקטגוריה זו. סכום השורות יחשב אוטומטית כ"תמחור בפועל" של הקטגוריה.
+    </div>
+
+    <div class="table-wrap" style="box-shadow:none; border:1px solid var(--gray-200); margin-bottom:12px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:46px;">#</th>
+            <th style="width:130px;">תאריך</th>
+            <th>תיאור</th>
+            <th style="width:140px; text-align:left;">סכום (₪)</th>
+            <th style="width:50px;"></th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="5" style="padding:20px; text-align:center; color:var(--gray-500);">אין שורות. לחץ "➕ הוסף שורה" להוספה.</td></tr>'}</tbody>
+        ${cat.line_items.length > 0 ? `
+        <tfoot>
+          <tr style="background:#1e40af; color:white; font-weight:700;">
+            <td colspan="3" style="text-align:right; padding:10px;">סה"כ:</td>
+            <td style="text-align:left; direction:ltr; padding:10px;" class="text-num">${fmt(sum)} ₪</td>
+            <td></td>
+          </tr>
+        </tfoot>` : ''}
+      </table>
+    </div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-accent" onclick="addCategoryLineItemRow(${projectId}, '${categoryKey}')">➕ הוסף שורה</button>
+      <button class="btn" onclick="openProjectCategoryNote(${projectId}, '${categoryKey}')" title="הוסף / ערוך הערה כללית לקטגוריה">📝 הערה לקטגוריה</button>
+    </div>
+  `;
+
+  const footer = `
+    <button class="btn btn-primary" onclick="closeCategoryLineItemsModal(${projectId})">✓ סיים</button>
+  `;
+  openModal(`✎ פירוט שורות - ${cat.name} - ${p_name_short(project)}`, body, footer);
+}
+
+function p_name_short(project) {
+  return project && project.name ? (project.name.length > 30 ? project.name.slice(0, 28) + '…' : project.name) : '';
+}
+
+function closeCategoryLineItemsModal(projectId) {
+  closeModal();
+  // Refresh the project view behind so sums are visible
+  setTimeout(() => viewProject(projectId), 100);
+}
+
+function addCategoryLineItemRow(projectId, categoryKey) {
+  const project = DATA.projects.find(p => p.id === projectId);
+  if (!project) return;
+  normalizeProjectCategories(project);
+  const cat = project.budget_categories.find(c => c.key === categoryKey);
+  if (!cat) return;
+  if (!Array.isArray(cat.line_items)) cat.line_items = [];
+  const newItem = {
+    id: _nextLineItemId(cat.line_items),
+    date: todayISO(),
+    description: '',
+    amount: 0,
+    created_at: new Date().toISOString(),
+  };
+  cat.line_items.push(newItem);
+  syncCategoryFromLineItems(projectId, categoryKey);
+  saveData();
+  // Re-open the modal to show new row
+  openCategoryLineItemsModal(projectId, categoryKey);
+}
+
+function updateCategoryLineItem(projectId, categoryKey, itemId, field, value) {
+  const project = DATA.projects.find(p => p.id === projectId);
+  if (!project) return;
+  const cat = project.budget_categories.find(c => c.key === categoryKey);
+  if (!cat || !Array.isArray(cat.line_items)) return;
+  const item = cat.line_items.find(it => it.id === itemId);
+  if (!item) return;
+  if (field === 'amount') item[field] = Number(value) || 0;
+  else item[field] = value;
+  item.updated_at = new Date().toISOString();
+  syncCategoryFromLineItems(projectId, categoryKey);
+  saveData();
+  // Update the totals in the modal without re-rendering the whole thing (preserves input focus)
+  _refreshLineItemsSummary(projectId, categoryKey);
+}
+
+function _refreshLineItemsSummary(projectId, categoryKey) {
+  const project = DATA.projects.find(p => p.id === projectId);
+  if (!project) return;
+  const cat = project.budget_categories.find(c => c.key === categoryKey);
+  if (!cat || !Array.isArray(cat.line_items)) return;
+  const sum = cat.line_items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+  const diff = cat.budget_planned - sum;
+  // Update the 3 KPI boxes on top of the modal
+  const kpiBoxes = document.querySelectorAll('#pk-popup-body > div:first-child > div');
+  if (kpiBoxes.length >= 3) {
+    const actualDiv = kpiBoxes[1].querySelector('div:last-child');
+    if (actualDiv) actualDiv.textContent = fmtCurrency(sum);
+    const actualLabel = kpiBoxes[1].querySelector('div:first-child');
+    if (actualLabel) actualLabel.textContent = `סה"כ בפועל (${cat.line_items.length} שורות)`;
+    const diffDiv = kpiBoxes[2].querySelector('div:last-child');
+    if (diffDiv) {
+      const color = diff >= 0 ? '#16a34a' : '#dc2626';
+      diffDiv.style.color = color;
+      diffDiv.textContent = (diff >= 0 ? '+' : '-') + fmtCurrency(Math.abs(diff));
+    }
+    const diffLabel = kpiBoxes[2].querySelector('div:first-child');
+    if (diffLabel) diffLabel.textContent = diff >= 0 ? 'יתרה בתקציב' : 'חריגה מהתקציב';
+    kpiBoxes[2].style.background = diff >= 0 ? '#f0fdf4' : '#fef2f2';
+  }
+  // Update the sum in the tfoot
+  const tfootSum = document.querySelector('#pk-popup-body tfoot td.text-num');
+  if (tfootSum) tfootSum.textContent = `${fmt(sum)} ₪`;
+}
+
+function deleteCategoryLineItem(projectId, categoryKey, itemId) {
+  if (!confirm('למחוק את השורה?')) return;
+  const project = DATA.projects.find(p => p.id === projectId);
+  if (!project) return;
+  const cat = project.budget_categories.find(c => c.key === categoryKey);
+  if (!cat || !Array.isArray(cat.line_items)) return;
+  cat.line_items = cat.line_items.filter(it => it.id !== itemId);
+  syncCategoryFromLineItems(projectId, categoryKey);
+  saveData();
+  openCategoryLineItemsModal(projectId, categoryKey);
+}
+
+function openProjectCategoryNote(projectId, categoryKey) {
+  const project = DATA.projects.find(p => p.id === projectId);
+  if (!project) return;
+  const cat = project.budget_categories.find(c => c.key === categoryKey);
+  if (!cat) return;
+  const newNote = prompt(`הערה לקטגוריה "${cat.name}":`, cat.note || '');
+  if (newNote == null) return;
+  cat.note = newNote.trim();
+  saveData();
+  openCategoryLineItemsModal(projectId, categoryKey);
+}
+
 /* ============ PROJECT METRICS ============ */
 function calcProjectMetrics(project) {
   // Ensure categories are normalized
@@ -4105,6 +4326,8 @@ function calcProjectMetrics(project) {
 
   // Make sure the contingency category reflects the latest deviations sum
   syncContingencyFromDeviations(project.id);
+  // Make sure the other 4 categories reflect their line items
+  syncAllLineItemCategories(project.id);
 
   // Calculate from the 6 categories
   const totalBudget = project.budget_categories.reduce((s,c)=>s+(c.budget_planned||0),0);
@@ -4729,6 +4952,16 @@ function viewProject(id) {
     const diffClass = diff >= 0 ? 'positive' : 'negative';
     const diffSign = diff > 0 ? '+' : (diff < 0 ? '−' : '');
     const absDiff = Math.abs(diff);
+    // v2.4.0 — show "פרט שורות" button only for 4 line-item-enabled categories
+    const supportsLineItems = (typeof LINE_ITEM_CATEGORIES !== 'undefined') && LINE_ITEM_CATEGORIES.includes(c.key);
+    const liCount = Array.isArray(c.line_items) ? c.line_items.length : 0;
+    const detailBtn = supportsLineItems
+      ? `<button class="btn btn-sm btn-primary" onclick="openCategoryLineItemsModal(${id}, '${c.key}')" title="הוסף / ערוך פירוט שורות עבודה">✎ פרט ${liCount > 0 ? `<span style="background:rgba(255,255,255,.3); padding:1px 6px; border-radius:10px; font-size:10px; margin-right:4px;">${liCount}</span>` : ''}</button>`
+      : c.key === 'contingency'
+        ? `<span style="font-size:11px; color:var(--gray-500); font-style:italic;">מוזן מחריגות</span>`
+        : c.key === 'install'
+          ? `<span style="font-size:11px; color:var(--gray-500); font-style:italic;">מוזן מתמחירי קבלנים</span>`
+          : '';
     return `
       <tr>
         <td class="cell-category">${c.name}</td>
@@ -4736,6 +4969,7 @@ function viewProject(id) {
         <td class="cell-pricing"><span class="budget-num">${fmt(c.pricing_actual)} ₪</span></td>
         <td class="cell-diff ${diffClass}"><span class="budget-num">${diffSign}${fmt(absDiff)} ₪</span></td>
         <td class="cell-note">${c.note || ''}</td>
+        <td style="text-align:center; white-space:nowrap;">${detailBtn}</td>
       </tr>
     `;
   }).join('');
@@ -4871,9 +5105,10 @@ function viewProject(id) {
               <th class="col-pricing">תמחור בפועל 📗</th>
               <th class="col-diff">הפרש</th>
               <th class="col-note">הערה</th>
+              <th style="width: 120px; text-align:center;">פירוט</th>
             </tr>
           </thead>
-          <tbody>${cats || '<tr><td colspan="5" style="padding: 20px; text-align: center; color: var(--gray-500);">אין קטגוריות תקציב</td></tr>'}</tbody>
+          <tbody>${cats || '<tr><td colspan="6" style="padding: 20px; text-align: center; color: var(--gray-500);">אין קטגוריות תקציב</td></tr>'}</tbody>
           ${cats ? `
           <tfoot>
             <tr>
@@ -4881,6 +5116,7 @@ function viewProject(id) {
               <td class="cell-budget"><span class="budget-num">${fmt(totalCatBudget)} ₪</span></td>
               <td class="cell-pricing"><span class="budget-num">${fmt(totalCatPricing)} ₪</span></td>
               <td class="cell-diff ${totalDiffClass}"><span class="budget-num">${totalDiffSign}${fmt(Math.abs(totalCatDiff))} ₪</span></td>
+              <td></td>
               <td></td>
             </tr>
           </tfoot>` : ''}
