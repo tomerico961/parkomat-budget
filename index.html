@@ -4064,6 +4064,8 @@ function normalizeProjectCategories(project) {
       budget_planned: found ? (found.budget_planned || 0) : 0,
       pricing_actual: found ? (found.pricing_actual || 0) : 0,
       note: found ? (found.note || '') : '',
+      // v2.4.0 — preserve line items across normalization (critical!)
+      line_items: (found && Array.isArray(found.line_items)) ? found.line_items : [],
     };
   });
   project.budget_categories = normalized;
